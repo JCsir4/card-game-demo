@@ -7,11 +7,10 @@
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <!-- Intro overlay (Canvas-based advanced animation) -->
   <div id="introOverlay" class="intro-overlay" aria-hidden="false">
     <canvas id="introCanvas" width="800" height="600" aria-hidden="false"></canvas>
     <div class="intro-controls">
-      <button id="skipIntro" class="btn">Skip Intro</button>
+      <button id="skipIntro" class="btn" type="button">Skip Intro</button>
     </div>
   </div>
 
@@ -19,45 +18,45 @@
     <h1>SouthSide Cards — Demo</h1>
     <div class="balance">Coins: <span id="coins">0</span></div>
     <div class="actions">
-      <button id="addCoins">+1000 Coins (dev)</button>
-      <button id="reset">Reset Demo</button>
+      <button id="addCoins" type="button">+1000 Coins (dev)</button>
+      <button id="reset" type="button">Reset Demo</button>
     </div>
   </header>
 
-  <nav class="tabs" role="tablist" aria-label="Main">
-    <button class="tab active" data-tab="shop" role="tab" aria-selected="true">Shop</button>
-    <button class="tab" data-tab="collection" role="tab">Collection</button>
-    <button class="tab" data-tab="leaderboard" role="tab">Leaderboard</button>
+  <nav class="tabs" role="tablist" aria-label="Main navigation">
+    <button class="tab active" data-tab="shop" role="tab" aria-selected="true" aria-controls="shop" tabindex="0" type="button">Shop</button>
+    <button class="tab" data-tab="collection" role="tab" aria-selected="false" aria-controls="collection" tabindex="-1" type="button">Collection</button>
+    <button class="tab" data-tab="leaderboard" role="tab" aria-selected="false" aria-controls="leaderboard" tabindex="-1" type="button">Leaderboard</button>
   </nav>
 
   <main>
-    <section id="shop" class="tabpanel">
+    <section id="shop" class="tabpanel" role="tabpanel" aria-label="Shop tab">
       <h2>Shop</h2>
       <div class="packs-wrap">
-        <div id="packs" class="packs-carousel" aria-label="Packs carousel"></div>
+        <div id="packs" class="packs-carousel" aria-label="Packs carousel" tabindex="0"></div>
       </div>
     </section>
 
-    <section id="collection" class="tabpanel hidden">
+    <section id="collection" class="tabpanel hidden" role="tabpanel" aria-label="Collection tab">
       <h2>Collection</h2>
       <div id="collectionGrid" class="collectionGrid"></div>
     </section>
 
-    <section id="leaderboard" class="tabpanel hidden">
+    <section id="leaderboard" class="tabpanel hidden" role="tabpanel" aria-label="Leaderboard tab">
       <h2>Leaderboard</h2>
       <div id="leaderboardContainer" class="leaderboardContainer"></div>
     </section>
 
     <section id="packOpen" class="hidden">
       <h2>Opening Pack: <span id="openingPackName"></span></h2>
-      <div id="cardsReveal" class="cardsReveal"></div>
-      <button id="closeReveal">Close</button>
+      <div id="cardsReveal" class="cardsReveal" aria-live="polite"></div>
+      <button id="closeReveal" type="button">Close</button>
     </section>
   </main>
 
   <footer>
     <p>Local demo. Data stored in localStorage.</p>
-    <p>Repo: <a href="https://github.com/JCsir4/card-game-demo" target="_blank">JCsir4/card-game-demo</a></p>
+    <p>Repo: <a href="https://github.com/JCsir4/card-game-demo" target="_blank" rel="noreferrer">JCsir4/card-game-demo</a></p>
   </footer>
 
   <script src="data.js"></script>
