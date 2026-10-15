@@ -14,12 +14,12 @@ const GAME_DATA = (function(){
   ];
 
   const packs = [
-    { key: "starter", label:"Starter Pack", price:100, cardsPerPack:3, rarityWeights:{ basic:50, common:30, uncommon:15, rare:5 } },
-    { key: "fortified", label:"Fortified Pack", price:250, cardsPerPack:3, rarityWeights:{ common:35, uncommon:30, rare:20, epic:10, legendary:5 } },
-    { key: "standard", label:"Standard Pack", price:500, cardsPerPack:4, rarityWeights:{ common:30, uncommon:25, rare:22, epic:15, legendary:8 } },
-    { key: "advanced", label:"Advanced Pack", price:900, cardsPerPack:5, rarityWeights:{ common:20, uncommon:20, rare:25, epic:20, legendary:10, mythic:5 } },
-    { key: "premium", label:"Premium Pack", price:1800, cardsPerPack:5, rarityWeights:{ uncommon:10, rare:20, epic:25, legendary:20, mythic:15, exotic:8, godly:2 } },
-    { key: "divine", label:"Divine Pack", price:4000, cardsPerPack:6, rarityWeights:{ rare:10, epic:20, legendary:25, mythic:20, exotic:15, godly:7, ethereal:3 } }
+    { key: "starter", label:"Starter Pack", price:100, cardsPerPack:3, rarityWeights:{ basic:50, common:30, uncommon:15, rare:5 }, imagePath:"assets/packs/starter.webp" },
+    { key: "fortified", label:"Fortified Pack", price:250, cardsPerPack:3, rarityWeights:{ common:35, uncommon:30, rare:20, epic:10, legendary:5 }, imagePath:"assets/packs/fortified.webp" },
+    { key: "standard", label:"Standard Pack", price:500, cardsPerPack:4, rarityWeights:{ common:30, uncommon:25, rare:22, epic:15, legendary:8 }, imagePath:"assets/packs/standard.webp" },
+    { key: "advanced", label:"Advanced Pack", price:900, cardsPerPack:5, rarityWeights:{ common:20, uncommon:20, rare:25, epic:20, legendary:10, mythic:5 }, imagePath:"assets/packs/advanced.webp" },
+    { key: "premium", label:"Premium Pack", price:1800, cardsPerPack:5, rarityWeights:{ uncommon:10, rare:20, epic:25, legendary:20, mythic:15, exotic:8, godly:2 }, imagePath:"assets/packs/premium.webp" },
+    { key: "divine", label:"Divine Pack", price:4000, cardsPerPack:6, rarityWeights:{ rare:10, epic:20, legendary:25, mythic:20, exotic:15, godly:7, ethereal:3 }, imagePath:"assets/packs/divine.webp" }
   ];
 
   // sample library: one card per rarity so demo is functional
