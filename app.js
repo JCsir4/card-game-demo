@@ -32,17 +32,25 @@ function render(){
   renderCollection();
 }
 
+function preloadImages(urls){
+  return Promise.all(urls.map(u => new Promise(res => {
+    const img = new Image(); img.src = u; img.onload = res; img.onerror = res;
+  })));
+}
+
 function renderPacks(){
   packsEl.innerHTML = '';
   GAME_DATA.packs.forEach(p=>{
     const div = document.createElement('div'); div.className='pack';
+    const thumb = document.createElement('div'); thumb.className='pack-thumb';
+    if(p.imagePath) thumb.style.backgroundImage = `url(${p.imagePath})`;
     const meta = document.createElement('div'); meta.className='meta';
     const h = document.createElement('div'); h.textContent = p.label;
     const sub = document.createElement('div'); sub.textContent = `${p.cardsPerPack} cards · ${p.price} coins`;
     meta.appendChild(h); meta.appendChild(sub);
     const btn = document.createElement('button'); btn.textContent='Buy & Open';
     btn.onclick = ()=>{ buyAndOpenPack(p.key); };
-    div.appendChild(meta); div.appendChild(btn);
+    div.appendChild(thumb); div.appendChild(meta); div.appendChild(btn);
     packsEl.appendChild(div);
   });
 }
@@ -140,5 +148,45 @@ function cryptoRandom(){ // 0..1
 addCoinsBtn.onclick = ()=>{ state.coins += 1000; saveState(state); render(); };
 resetBtn.onclick = ()=>{ if(confirm('Reset demo state?')){ localStorage.removeItem(STORAGE_KEY); state = loadState(); render(); packOpenSection.classList.add('hidden'); } };
 closeRevealBtn.onclick = ()=>{ packOpenSection.classList.add('hidden'); }
+
+// start by preloading pack images then render
+preloadImages(GAME_DATA.packs.map(p=>p.imagePath)).then(render);
+
+// subtle parallax script (respects prefers-reduced-motion)
+(function(){
+  if(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  // create background element if not present
+  let siteBg = document.querySelector('.site-bg');
+  if(!siteBg){
+    siteBg = document.createElement('div'); siteBg.className='site-bg'; siteBg.setAttribute('aria-hidden','true');
+    const img = document.createElement('img'); img.src = 'assets/backgrounds/southside_bg.png'; img.alt='';
+    siteBg.appendChild(img);
+    document.body.insertBefore(siteBg, document.body.firstChild);
+  }
+  const bgImg = siteBg.querySelector('img');
+  if(!bgImg) return;
+  let mouseX=0, mouseY=0, tx=0, ty=0;
+  const maxTranslate = 18;
+  function onMove(e){
+    const w = window.innerWidth, h = window.innerHeight;
+    mouseX = (e.clientX / w - 0.5) * 2;
+    mouseY = (e.clientY / h - 0.5) * 2;
+  }
+  function onScroll(){
+    const s = window.scrollY || window.pageYOffset;
+    ty = (s / (document.body.scrollHeight || 1)) * 8;
+  }
+  window.addEventListener('mousemove', onMove, { passive:true });
+  window.addEventListener('scroll', onScroll, { passive:true });
+  function tick(){
+    const targetX = mouseX * maxTranslate;
+    const targetY = mouseY * maxTranslate * 0.6 + ty;
+    tx += (targetX - tx) * 0.08;
+    ty += (targetY - ty) * 0.08;
+    bgImg.style.transform = `translate3d(${tx}px, ${ty}px, 0) scale(1.02)`;
+    requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(tick);
+})();
 
 render();
