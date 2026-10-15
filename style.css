@@ -1,0 +1,27 @@
+:root{
+  --bg:#0f1720;
+  --card-bg:#111827;
+  --text:#e6eef8;
+  --muted:#9aa7b8;
+}
+*{box-sizing:border-box}
+body{margin:0;font-family:Inter,system-ui,Segoe UI,Roboto,"Helvetica Neue",Arial;background:var(--bg);color:var(--text);}
+header{display:flex;align-items:center;justify-content:space-between;padding:16px 24px;background:linear-gradient(180deg,rgba(255,255,255,0.02),transparent);}
+header h1{margin:0;font-size:20px}
+.balance{font-weight:600}
+.actions button{margin-left:8px}
+main{padding:24px;display:grid;grid-template-columns:360px 1fr;gap:24px}
+section{background:var(--card-bg);border-radius:8px;padding:16px}
+.packs{display:flex;flex-direction:column;gap:12px}
+.pack{display:flex;justify-content:space-between;align-items:center;padding:12px;background:linear-gradient(180deg,rgba(255,255,255,0.02),transparent);border-radius:6px}
+.pack .meta{display:flex;flex-direction:column}
+.pack button{padding:8px 12px;border-radius:6px;background:#2b6cb0;border:0;color:white;cursor:pointer}
+.collectionGrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:12px}
+.card{background:#0b1220;border-radius:6px;padding:8px;display:flex;flex-direction:column;align-items:center;text-align:center}
+.card .art{width:96px;height:96px;border-radius:4px;margin-bottom:8px;display:flex;align-items:center;justify-content:center;color:#071023;font-weight:700}
+.hidden{display:none}
+#packOpen{grid-column:1/3;text-align:center}
+.cardsReveal{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;padding:12px}
+.revealed{width:140px}
+.revealed .art{width:120px;height:120px;border-radius:8px;font-size:18px}
+footer{padding:12px 24px;color:var(--muted)}

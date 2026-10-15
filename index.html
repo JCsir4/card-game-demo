@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Card Pack Demo</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header>
+    <h1>Card Pack Demo</h1>
+    <div class="balance">Coins: <span id="coins">0</span></div>
+    <div class="actions">
+      <button id="addCoins">+1000 Coins (dev)</button>
+      <button id="reset">Reset Demo</button>
+    </div>
+  </header>
+
+  <main>
+    <section id="shop">
+      <h2>Shop</h2>
+      <div id="packs" class="packs"></div>
+    </section>
+
+    <section id="packOpen" class="hidden">
+      <h2>Opening Pack: <span id="openingPackName"></span></h2>
+      <div id="cardsReveal" class="cardsReveal"></div>
+      <button id="closeReveal">Close</button>
+    </section>
+
+    <section id="collection">
+      <h2>Collection</h2>
+      <div id="collectionGrid" class="collectionGrid"></div>
+    </section>
+  </main>
+
+  <footer>
+    <p>Local demo. Data stored in localStorage.</p>
+    <p>Repo: <a href="https://github.com/JCsir4/card-game-demo" target="_blank">JCsir4/card-game-demo</a></p>
+  </footer>
+
+  <script src="data.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
