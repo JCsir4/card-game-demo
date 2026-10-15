@@ -1,0 +1,6 @@
+mkdir -p assets/packs assets/backgrounds
+cp /path/to/pack-composite.png assets/packs/pack-composite.png
+cp /path/to/southside_bg.png assets/backgrounds/southside_bg.png
+git add assets/packs/pack-composite.png assets/backgrounds/southside_bg.png
+git commit -m "Add pack composite and background"
+git push origin main
