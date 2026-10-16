@@ -1,0 +1,41 @@
+How to upload or replace images for SouthSide Cards
+
+This guide explains how to add your own artwork or replace the game's placeholder images.
+
+1) Locate the repository on GitHub
+   - Open https://github.com/JCsir4/card-game-demo
+
+2) Open the 'public/assets' directory
+   - You'll see subfolders like 'packs', 'cards', 'backgrounds', 'icons', and 'audio'.
+
+3) Uploading a new file via the GitHub web UI
+   - Click 'Add file' → 'Upload files'
+   - Drag and drop your image files (PNG, JPG, or WebP recommended)
+   - Make sure the filename exactly matches the one in ASSET_MANIFEST.txt
+     Example: public/assets/packs/free-pack.png
+   - Commit the changes to the repository (you can add a branch and create a pull request if you prefer)
+
+4) Replacing an existing file
+   - Upload a file with the exact same filename and path. The new file replaces the old one when committed.
+   - If you're working locally, replace the file in your clone and push the commit.
+
+5) Recommended file formats and settings
+   - PNG for images requiring transparency.
+   - 72–300 DPI; web-friendly dimensions (e.g., 1200×800 for backgrounds).
+   - Keep file sizes reasonable for web (under 2–3MB when possible).
+
+6) Common pitfalls
+   - Wrong filename or path: the game looks for exact paths found in ASSET_MANIFEST.txt
+   - Cached images: your browser may cache old images; hard-refresh (Ctrl+Shift+R) after uploading
+   - Case sensitivity: filenames are case-sensitive on GitHub Pages
+
+7) Troubleshooting
+   - If an image does not appear in the game, open the browser DevTools Console and look for 404 or missing-file warnings.
+   - The game will fall back to a CSS placeholder if an image is missing.
+
+8) Example: replacing the Free Pack cover
+   - Prepare your image as 'free-pack.png'
+   - Upload it to 'public/assets/packs/free-pack.png'
+   - Commit and refresh the game page
+
+If you prefer to manage files locally using git, clone the repository, add images in the paths listed in ASSET_MANIFEST.txt, commit, and push.
