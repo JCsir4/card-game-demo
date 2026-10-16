@@ -1,357 +1,402 @@
-// Simple demo app: uses GAME_DATA from data.js
-const STORAGE_KEY = "card_demo_state_v1";
-const LB_KEY = "card_demo_leaderboard_v1";
+// Main application logic for SouthSide Cards - guest-only, local-save implementation
+// This file implements: save system, currency, pack opening, collection, sell duplicates UI and logic
 
-function loadState(){
-  const raw = localStorage.getItem(STORAGE_KEY);
-  if(raw) return JSON.parse(raw);
-  return { coins: 5000, collection: {}, opened: 0 };
-}
-function saveState(s){ localStorage.setItem(STORAGE_KEY, JSON.stringify(s)); }
+(function(){
+  // Utilities
+  function $(sel){return document.querySelector(sel)}
+  function el(t,cls,txt){const e=document.createElement(t);if(cls)e.className=cls;if(txt)e.textContent=txt;return e}
 
-let state = loadState();
+  // Load data
+  const DATA = GAME_DATA; // from data.js
 
-// DOM refs
-const coinsEl = document.getElementById('coins');
-const packsEl = document.getElementById('packs');
-const collectionGrid = document.getElementById('collectionGrid');
-const addCoinsBtn = document.getElementById('addCoins');
-const resetBtn = document.getElementById('reset');
-const packOpenSection = document.getElementById('packOpen');
-const openingPackName = document.getElementById('openingPackName');
-const cardsReveal = document.getElementById('cardsReveal');
-const closeRevealBtn = document.getElementById('closeReveal');
-const leaderboardContainer = document.getElementById('leaderboardContainer');
-
-function render(){
-  if(coinsEl) coinsEl.textContent = state.coins;
-  renderCollection();
-  renderLeaderboard();
-}
-
-function preloadImages(urls){
-  return Promise.all((urls || []).filter(Boolean).map(u => new Promise(res => {
-    const img = new Image();
-    img.onload = res; img.onerror = res; img.src = u;
-  })));
-}
-
-function renderPacks(){
-  if(!packsEl) return;
-  packsEl.innerHTML = '';
-
-  GAME_DATA.packs.forEach((p, idx)=>{
-    const div = document.createElement('div'); div.className='pack'; div.dataset.index = idx;
-    const thumb = document.createElement('div'); thumb.className='pack-thumb';
-    if(p.imagePath) thumb.style.backgroundImage = `url(${p.imagePath})`;
-
-    const meta = document.createElement('div'); meta.className='meta';
-    const h = document.createElement('div'); h.textContent = p.label;
-    const sub = document.createElement('div'); sub.textContent = `${p.cardsPerPack} cards · ${p.price} coins`;
-    meta.appendChild(h); meta.appendChild(sub);
-
-    const btn = document.createElement('button'); btn.textContent='Buy & Open';
-    btn.onclick = ()=>{ buyAndOpenPack(p.key); };
-
-    div.appendChild(thumb); div.appendChild(meta); div.appendChild(btn);
-    packsEl.appendChild(div);
-  });
-
-  requestAnimationFrame(highlightNearestPack);
-
-  let scTimer = null;
-  packsEl.addEventListener('scroll', ()=>{
-    if(scTimer) clearTimeout(scTimer);
-    highlightNearestPack();
-    scTimer = setTimeout(()=>{ snapToNearestPack(); }, 110);
-  }, { passive:true });
-
-  packsEl.addEventListener('click', (e)=>{
-    const p = e.target.closest('.pack');
-    if(!p) return;
-    centerPack(parseInt(p.dataset.index,10));
-  });
-
-  packsEl.scrollLeft = 0;
-}
-
-function highlightNearestPack(){
-  if(!packsEl) return;
-  const children = [...packsEl.children];
-  if(children.length === 0) return;
-  const targetX = packsEl.getBoundingClientRect().left + 24;
-  let best = null, bestDist = Infinity;
-
-  children.forEach(c=>{
-    const r = c.getBoundingClientRect();
-    const d = Math.abs(r.left - targetX);
-    if(d < bestDist){ bestDist = d; best = c; }
-  });
-
-  children.forEach(c=>c.classList.remove('focused'));
-  if(best) best.classList.add('focused');
-}
-
-function centerPack(index){
-  const children = [...(packsEl ? packsEl.children : [])];
-  const el = children[index];
-  if(!el || !packsEl) return;
-  const containerRect = packsEl.getBoundingClientRect();
-  const elRect = el.getBoundingClientRect();
-  const targetScroll = packsEl.scrollLeft + (elRect.left - containerRect.left) - 24;
-  packsEl.scrollTo({ left: targetScroll, behavior: 'smooth' });
-}
-
-function snapToNearestPack(){
-  if(!packsEl) return;
-  const children = [...packsEl.children];
-  if(children.length === 0) return;
-  const containerRect = packsEl.getBoundingClientRect();
-  const targetX = containerRect.left + 24;
-  let best = null, bestDist = Infinity;
-
-  children.forEach(c=>{
-    const r = c.getBoundingClientRect();
-    const d = Math.abs(r.left - targetX);
-    if(d < bestDist){ bestDist = d; best = c; }
-  });
-
-  if(best){
-    const elRect = best.getBoundingClientRect();
-    const target = packsEl.scrollLeft + (elRect.left - containerRect.left) - 24;
-    packsEl.scrollTo({ left: target, behavior: 'smooth' });
-  }
-}
-
-function buyAndOpenPack(packKey){
-  const pack = GAME_DATA.packs.find(p=>p.key===packKey);
-  if(!pack) return;
-  if(state.coins < pack.price){ alert('Not enough coins'); return; }
-  state.coins -= pack.price; state.opened += 1; saveState(state);
-  if(coinsEl) coinsEl.textContent = state.coins;
-  renderLeaderboard();
-  openPack(pack);
-}
-
-function openPack(pack){
-  if(!openingPackName || !cardsReveal || !packOpenSection) return;
-  openingPackName.textContent = pack.label;
-  cardsReveal.innerHTML = '';
-  packOpenSection.classList.remove('hidden');
-
-  const results = [];
-  for(let i=0;i<pack.cardsPerPack;i++){
-    const rarity = drawRarity(pack.rarityWeights);
-    const card = drawCardOfRarity(rarity);
-    results.push(card);
+  // Validate packs at load
+  if(DATA.validationErrors && DATA.validationErrors.length){
+    console.warn('Pack validation errors:', DATA.validationErrors);
   }
 
-  let i=0;
-  function revealNext(){
-    if(i>=results.length) return;
-    const card = results[i];
-    const node = renderRevealedCard(card);
-    cardsReveal.appendChild(node);
-    state.collection[card.id] = (state.collection[card.id]||0)+1;
-    saveState(state);
-    renderCollection();
-    renderLeaderboard();
-    i++;
-    setTimeout(revealNext, 700);
+  // Save system (versioned)
+  const SAVE_KEY = 'ssc_save_v1';
+  function defaultSave(){
+    return {
+      version:1,
+      balance:0,
+      lifetimeGained:0,
+      lifetimeSpent:0,
+      cardCopies:{}, // id -> count
+      ownedUniqueIds:[],
+      packsOpened:0,
+      bestCardPulled:null,
+      claimedRewards:{},
+      bonuses:{},
+      playtimeSeconds:0,
+      settings:{sound:true,reducedMotion:false},
+      introPlayed:false,
+      transactions:[] // recent tx ids to prevent duplicates
+    }
   }
-  revealNext();
-}
 
-function renderRevealedCard(card){
-  const box = document.createElement('div'); box.className='revealed';
-  const art = document.createElement('div'); art.className='art'; art.style.background=rarityHex(card.rarity);
-  art.textContent = card.name.split(' ')[0];
-  const title = document.createElement('div'); title.textContent = card.name;
-  const meta = document.createElement('div'); meta.textContent = card.rarity;
-  box.appendChild(art); box.appendChild(title); box.appendChild(meta);
-  return box;
-}
+  function loadSave(){
+    try{
+      const raw = localStorage.getItem(SAVE_KEY);
+      if(!raw) return defaultSave();
+      const s = JSON.parse(raw);
+      // basic validation
+      if(typeof s.balance !== 'number') throw new Error('invalid save');
+      s.cardCopies = s.cardCopies || {};
+      s.ownedUniqueIds = s.ownedUniqueIds || [];
+      s.claimedRewards = s.claimedRewards || {};
+      s.bonuses = s.bonuses || {};
+      s.transactions = s.transactions || [];
+      return s;
+    }catch(e){
+      console.error('Failed to load save, using default',e);
+      return defaultSave();
+    }
+  }
 
-function renderCollection(){
-  if(!collectionGrid) return;
-  collectionGrid.innerHTML = '';
-  const rarityOrder = GAME_DATA.rarities.slice().sort((a,b)=>a.rank - b.rank).map(r=>r.key);
+  function saveState(){
+    localStorage.setItem(SAVE_KEY, JSON.stringify(state));
+  }
 
-  rarityOrder.forEach(rk=>{
-    const rinfo = GAME_DATA.rarities.find(r=>r.key===rk);
-    const row = document.createElement('div'); row.className='rarity-row';
-    const heading = document.createElement('h3'); heading.textContent = rinfo.label;
-    row.appendChild(heading);
+  let state = loadSave();
 
-    const rowGrid = document.createElement('div'); rowGrid.className='rarity-grid';
-    const cardsOfR = GAME_DATA.library.filter(c=>c.rarity===rk);
+  // Currency system
+  function canAfford(amount){return state.balance >= amount}
+  function applyTransaction(delta,reason){
+    // delta can be positive (gain) or negative (spend)
+    if(delta<0 && state.balance + delta < 0) return false;
+    state.balance += delta;
+    if(delta>0) state.lifetimeGained += delta;
+    if(delta<0) state.lifetimeSpent += Math.abs(delta);
+    saveState();
+    renderBalance();
+    return true;
+  }
 
-    cardsOfR.forEach(card=>{
-      const cnt = state.collection[card.id] || 0;
-      const c = document.createElement('div'); c.className='collection-card';
-      const art = document.createElement('div'); art.className='art';
-      art.style.background = rarityHex(card.rarity);
-      art.style.height = '96px';
-      art.style.borderRadius = '8px';
-      art.style.display = 'flex';
-      art.style.alignItems = 'center';
-      art.style.justifyContent = 'center';
-      art.textContent = card.name.split(' ')[0];
-      const title = document.createElement('div'); title.textContent = card.name;
-      const meta = document.createElement('div'); meta.textContent = `Owned: ${cnt}`;
-      c.appendChild(art); c.appendChild(title); c.appendChild(meta);
-      rowGrid.appendChild(c);
+  // Rarity selection using weights and optional luck bonus
+  function chooseRarity(pack){
+    const weights = Object.assign({},pack.rarityWeights);
+    // apply luck bonus from state.bonuses.luckPercent if present
+    const luckPercent = Object.values(state.bonuses || {}).reduce((acc,b)=> acc + (b.type==='luck' ? 20 : 0),0);
+    if(luckPercent>0){
+      // Simple system: add weight proportional to luck to higher rarities (scale by rarity rank)
+      DATA.rarities.forEach(r=>{
+        if(weights[r.key]){
+          weights[r.key] = weights[r.key] * (1 + (luckPercent/100) * (r.rank/10));
+        }
+      });
+    }
+    // Normalize to sum 100
+    const entries = Object.entries(weights).filter(([k,v])=>v>0);
+    const total = entries.reduce((s,[_k,v])=>s+v,0);
+    let rnd = Math.random() * total;
+    for(const [k,v] of entries){
+      if(rnd < v) return k;
+      rnd -= v;
+    }
+    return entries[entries.length-1][0];
+  }
+
+  // Find a random card of a rarity
+  function chooseCardByRarity(rarity){
+    const candidates = DATA.library.filter(c=>c.rarity===rarity);
+    if(candidates.length===0) return null;
+    return candidates[Math.floor(Math.random()*candidates.length)];
+  }
+
+  // Pack opening process
+  let openingLock = false; // prevent duplicate opens
+  function openPack(pack){
+    if(openingLock) return;
+    openingLock = true;
+    try{
+      // validate pack
+      if(!pack || !pack.key) return showNotification('Invalid pack');
+      if(!canAfford(pack.price)) return showNotification('Cannot afford this pack');
+      // deduct price (Free pack price 0 will pass)
+      const txId = 'open_'+Date.now()+'_'+Math.random().toString(36).slice(2,8);
+      if(pack.price>0){
+        if(!applyTransaction(-pack.price,`Buy ${pack.key}`)){
+          openingLock=false;return showNotification('Purchase failed');
+        }
+      }
+      // select rarity and card
+      const rarity = chooseRarity(pack);
+      const card = chooseCardByRarity(rarity);
+      if(!card){
+        showNotification('No card available for selected rarity. Transaction refunded.');
+        // refund
+        if(pack.price>0) applyTransaction(pack.price, 'Refund');
+        openingLock=false;return;
+      }
+      // show reveal animation (simple) then claim
+      showReveal(card,()=>{
+        // claim action
+        claimCard(card,txId);
+        state.packsOpened = (state.packsOpened||0)+1;
+        saveState();
+        openingLock=false;
+      });
+    }catch(e){
+      console.error(e);openingLock=false;showNotification('Error opening pack');
+    }
+  }
+
+  function claimCard(card,txId){
+    if(state.transactions.includes(txId)) return; // already claimed
+    state.transactions.push(txId);
+    // ensure inventory
+    const prev = state.cardCopies[card.id]||0;
+    state.cardCopies[card.id] = prev+1;
+    if(prev===0) state.ownedUniqueIds.push(card.id);
+    // update best card by rarity rank
+    const rarityRank = DATA.rarities.find(r=>r.key===card.rarity).rank;
+    if(!state.bestCardPulled || rarityRank > (DATA.rarities.find(r=>r.key===state.bestCardPulled.rarity).rank)){
+      state.bestCardPulled = { id: card.id, name:card.name, rarity:card.rarity };
+    }
+    saveState();
+    renderCollectionGrid();
+    renderBalance();
+    showNotification('Card claimed: '+card.name);
+  }
+
+  // Simple reveal UI
+  function showReveal(card,cb){
+    const prev = $('#pack-view');
+    prev.innerHTML='';
+    const slot = el('div','card-slot');
+    const art = el('div','card-art');
+    art.textContent = card.name + ' ['+card.rarity+']';
+    slot.appendChild(art);
+    const info = el('div','',card.description || '');
+    slot.appendChild(info);
+    prev.appendChild(slot);
+    setTimeout(cb, 800); // brief animation
+  }
+
+  // Collection rendering
+  function renderCollectionGrid(){
+    const grid = $('#collection-grid');
+    grid.innerHTML='';
+    // Organize by specified rarity order
+    DATA.rarities.forEach(r=>{
+      // header for rarity
+      const header = el('div','',r.label);
+      header.style.gridColumn='1/-1';
+      header.style.fontWeight='700';
+      header.style.marginTop='8px';
+      grid.appendChild(header);
+      const cards = DATA.library.filter(c=>c.rarity===r.key);
+      cards.forEach(card=>{
+        const slot = el('div','card-slot');
+        const art = el('div','card-art');
+        art.textContent = card.name;
+        slot.appendChild(art);
+        const name = el('div','',card.name);
+        slot.appendChild(name);
+        const rarity = el('div','',r.label);
+        slot.appendChild(rarity);
+        const qty = state.cardCopies[card.id]||0;
+        const badge = el('div','qty-badge', '×'+qty);
+        slot.appendChild(badge);
+        grid.appendChild(slot);
+      });
     });
-
-    row.appendChild(rowGrid);
-    collectionGrid.appendChild(row);
-  });
-
-  animateCollectionReveal();
-}
-
-function animateCollectionReveal(){
-  const cards = [...document.querySelectorAll('.collection-card')];
-  if(cards.length === 0) return;
-
-  if(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches){
-    cards.forEach(el=>el.classList.add('reveal'));
-    return;
   }
 
-  cards.forEach((el, i)=>{
-    el.classList.remove('reveal');
-    el.style.transitionDelay = (i * 60) + 'ms';
-    setTimeout(()=>el.classList.add('reveal'), 20 + i * 60);
-  });
-}
-
-function rarityHex(r){
-  const rinfo = GAME_DATA.rarities.find(x=>x.key===r);
-  return rinfo ? rinfo.hex : '#777';
-}
-
-function drawRarity(weights){
-  const entries = Object.entries(weights).filter(([k,v])=>v>0);
-  const total = entries.reduce((s,[k,v])=>s+v,0);
-  let r = cryptoRandom()*total;
-  for(const [k,v] of entries){
-    if(r < v) return k;
-    r -= v;
-  }
-  return entries[entries.length-1][0];
-}
-
-function drawCardOfRarity(rarity){
-  const pool = GAME_DATA.library.filter(c=>c.rarity===rarity);
-  if(pool.length===0) return GAME_DATA.library[Math.floor(cryptoRandom()*GAME_DATA.library.length)];
-  return pool[Math.floor(cryptoRandom()*pool.length)];
-}
-
-function cryptoRandom(){
-  try{
-    const a = new Uint32Array(1);
-    window.crypto.getRandomValues(a);
-    return a[0]/(0xFFFFFFFF+1);
-  }catch(e){ return Math.random(); }
-}
-
-function seedPlayers(){
-  const seed = [
-    { id:'alice', name:'Alice', coins: 2200, cards: 24, packsOpened: 12 },
-    { id:'bob', name:'Bob', coins: 1700, cards: 18, packsOpened: 9 },
-    { id:'carla', name:'Carla', coins: 5400, cards: 38, packsOpened: 30 },
-    { id:'dan', name:'Dan', coins: 800, cards: 8, packsOpened: 3 },
-    { id:'you', name:'You', coins: state.coins, cards: totalCards(), packsOpened: state.opened }
-  ];
-  localStorage.setItem(LB_KEY, JSON.stringify(seed));
-  return seed;
-}
-
-function loadPlayers(){
-  const raw = localStorage.getItem(LB_KEY);
-  if(!raw) return seedPlayers();
-  try{return JSON.parse(raw);}catch(e){ return seedPlayers(); }
-}
-
-function savePlayers(players){ localStorage.setItem(LB_KEY, JSON.stringify(players)); }
-function totalCards(){ return Object.values(state.collection || {}).reduce((s,v)=>s+v,0); }
-
-function renderLeaderboard(){
-  if(!leaderboardContainer) return;
-  leaderboardContainer.innerHTML = '';
-  const players = loadPlayers();
-
-  const me = players.find(p=>p.id==='you');
-  if(me){
-    me.coins = state.coins;
-    me.cards = totalCards();
-    me.packsOpened = state.opened;
-  } else {
-    players.push({ id:'you', name:'You', coins:state.coins, cards:totalCards(), packsOpened:state.opened });
-  }
-
-  const byCoins = players.slice().sort((a,b)=>b.coins - a.coins).slice(0,8);
-  const byCards = players.slice().sort((a,b)=>b.cards - a.cards).slice(0,8);
-  const byPacks = players.slice().sort((a,b)=>b.packsOpened - a.packsOpened).slice(0,8);
-
-  function buildColumn(title, list, key){
-    const col = document.createElement('div'); col.className='leaderboard-column';
-    const h = document.createElement('h4'); h.textContent = title; col.appendChild(h);
-    list.forEach((p,i)=>{
-      const row = document.createElement('div'); row.className='leader-row';
-      row.innerHTML = `<div>${i+1}. ${p.name}</div><div>${p[key]}</div>`;
-      if(p.id==='you') row.style.background = 'linear-gradient(90deg, rgba(255,255,255,0.03), rgba(0,0,0,0.03))';
-      col.appendChild(row);
+  function calculateSellable(){
+    // returns {items:[{card,qty,sellValue}],total}
+    let total = 0;const items=[];
+    DATA.library.forEach(card=>{
+      const owned = state.cardCopies[card.id]||0;
+      const sellable = Math.max(0, owned - 1);
+      if(sellable>0){
+        const base = card.baseQuickSell||0;
+        items.push({card,qty:sellable,baseValue:base,subtotal: sellable*base});
+        total += sellable*base;
+      }
     });
-    return col;
+    // apply earnings bonuses (+20% per selected earnings)
+    const earningsMultiplier = 1 + Object.values(state.bonuses || {}).filter(b=>b.type==='earnings').length * 0.2;
+    const finalTotal = Math.round(total * earningsMultiplier);
+    return {items,total,finalTotal,earningsMultiplier};
   }
 
-  leaderboardContainer.appendChild(buildColumn('Most coins', byCoins, 'coins'));
-  leaderboardContainer.appendChild(buildColumn('Most cards', byCards, 'cards'));
-  leaderboardContainer.appendChild(buildColumn('Most packs opened', byPacks, 'packsOpened'));
-
-  savePlayers(players);
-}
-
-function tickLeaderboardSimulation(){
-  const players = loadPlayers();
-  players.forEach(p=>{
-    if(p.id === 'you') return;
-    if(Math.random() < 0.2) p.coins = Math.max(0, p.coins + Math.round((Math.random()-0.5)*200));
-    if(Math.random() < 0.12) p.cards = Math.max(0, p.cards + Math.round(Math.random()*2));
-    if(Math.random() < 0.08) p.packsOpened = Math.max(0, p.packsOpened + Math.round(Math.random()*1));
-  });
-  savePlayers(players);
-  renderLeaderboard();
-}
-
-addCoinsBtn.onclick = ()=>{ state.coins += 1000; saveState(state); if(coinsEl) coinsEl.textContent = state.coins; renderLeaderboard(); };
-resetBtn.onclick = ()=>{ if(confirm('Reset demo state?')){ localStorage.removeItem(STORAGE_KEY); localStorage.removeItem(LB_KEY); state = loadState(); render(); if(packOpenSection) packOpenSection.classList.add('hidden'); } };
-if(closeRevealBtn){ closeRevealBtn.onclick = ()=>{ if(packOpenSection) packOpenSection.classList.add('hidden'); }; }
-
-// Tab wiring
-const tabs = document.querySelectorAll('.tab');
-if(tabs.length){
-  tabs.forEach(btn=>{
-    btn.addEventListener('click', ()=>{
-      tabs.forEach(t=>t.classList.remove('active'));
-      btn.classList.add('active');
-      const tab = btn.dataset.tab;
-      document.querySelectorAll('.tabpanel').forEach(p=>p.classList.add('hidden'));
-      const panel = document.getElementById(tab);
-      if(panel) panel.classList.remove('hidden');
-      if(tab === 'collection') renderCollection();
-      if(tab === 'shop') renderPacks();
-      if(tab === 'leaderboard') renderLeaderboard();
+  // Sell duplicates flow
+  let sellingLock=false;
+  function openSellDialog(){
+    const d = $('#sell-dialog');
+    const summary = $('#sell-summary');
+    const calc = calculateSellable();
+    if(calc.items.length===0){
+      showNotification('No duplicate cards to sell.');return;
+    }
+    summary.innerHTML='';
+    const list = el('div','');
+    calc.items.forEach(it=>{
+      const row = el('div','', `${it.card.name} ×${it.qty} → ${it.subtotal} rupees`);
+      list.appendChild(row);
     });
-  });
-}
+    const tot = el('div','', `Subtotal: ${calc.total} rupees`);
+    const mult = el('div','', `Earnings multiplier: ${Math.round((calc.earningsMultiplier-1)*100)}% → Final: ${calc.finalTotal} rupees`);
+    summary.appendChild(list);summary.appendChild(tot);summary.appendChild(mult);
+    d.classList.remove('hidden');
+  }
 
-preloadImages(GAME_DATA.packs.map(p=>p.imagePath)).then(()=>{
-  renderPacks();
-  render();
-  setInterval(()=>{ tickLeaderboardSimulation(); }, 6000);
-});
+  function confirmSell(){
+    if(sellingLock) return;sellingLock=true;
+    const calc = calculateSellable();
+    if(calc.items.length===0){sellingLock=false;showNotification('No duplicates to sell');return}
+    // perform atomic sale: re-calc, then apply
+    // remove sellable copies
+    calc.items.forEach(it=>{
+      state.cardCopies[it.card.id] = (state.cardCopies[it.card.id]||0) - it.qty;
+      if(state.cardCopies[it.card.id] < 1){
+        // keep zero to be safe and remove from ownedUniqueIds
+        delete state.cardCopies[it.card.id];
+        const idx = state.ownedUniqueIds.indexOf(it.card.id);
+        if(idx!==-1) state.ownedUniqueIds.splice(idx,1);
+      }
+    });
+    // apply rupees
+    const gain = calc.finalTotal;
+    applyTransaction(gain,'Sell Duplicates');
+    saveState();
+    renderCollectionGrid();
+    renderBalance();
+    $('#sell-dialog').classList.add('hidden');
+    sellingLock=false;
+    showNotification(`Sold duplicates for ${gain} rupees`);
+  }
 
-render();
+  function cancelSell(){
+    $('#sell-dialog').classList.add('hidden');
+  }
+
+  // UI renderers
+  function renderBalance(){
+    const b = $('#rupee-balance');
+    const sb = $('#shop-balance');
+    if(b) b.textContent = state.balance + ' rupees';
+    if(sb) sb.textContent = state.balance + ' rupees';
+  }
+
+  function renderPackView(index){
+    const view = $('#pack-view');
+    view.innerHTML='';
+    const pack = DATA.packs[index];
+    if(!pack) return;
+    const box = el('div','', '');
+    const title = el('div','', `${pack.label} — ${pack.price} rupees`);
+    const desc = el('div','', pack.description || '');
+    box.appendChild(title);box.appendChild(desc);
+    view.appendChild(box);
+    // odds panel
+    const odds = $('#odds-panel');
+    odds.innerHTML='';
+    const list = el('div','');
+    Object.entries(pack.rarityWeights).forEach(([k,v])=>{
+      const r = DATA.rarities.find(rr=>rr.key===k);
+      const row = el('div','', `${r.label}: ${v}%`);
+      list.appendChild(row);
+    });
+    odds.appendChild(list);
+  }
+
+  // Simple notification
+  let notifTimeout=null;
+  function showNotification(msg){
+    const n = $('#notification');
+    n.textContent = msg; n.classList.remove('hidden');
+    clearTimeout(notifTimeout);notifTimeout=setTimeout(()=>n.classList.add('hidden'),3000);
+  }
+
+  // Event wiring and navigation
+  let currentPackIndex = 0;
+  function showScreen(id){
+    document.querySelectorAll('.screen').forEach(s=>s.classList.add('hidden'));
+    document.getElementById(id).classList.remove('hidden');
+  }
+
+  function init(){
+    // Title
+    $('#play-button').addEventListener('click',()=>{
+      // play cinematic unless already played or reduced-motion
+      if(!state.introPlayed && !state.settings.reducedMotion){
+        playCinematic(()=>{ state.introPlayed=true; saveState(); showScreen('main-menu'); });
+      }else{
+        showScreen('main-menu');
+      }
+    });
+    $('#account-button').addEventListener('click',()=>showNotification('Account features require backend configuration.'));
+
+    // Main menu nav
+    $('#shop-button').addEventListener('click',()=>{ showScreen('shop-screen'); renderPackView(currentPackIndex); renderBalance(); });
+    $('#collection-button').addEventListener('click',()=>{ showScreen('collection-screen'); renderCollectionGrid(); renderBalance(); });
+    $('#leaderboard-button').addEventListener('click',()=>showNotification('Leaderboards require backend configuration. Sample data displayed.'));
+    $('#standings-button').addEventListener('click',()=>showNotification('Standings will show local stats.'));
+    $('#settings-button').addEventListener('click',()=>showNotification('Settings panel not yet implemented.'));
+
+    // Shop controls
+    $('#left-arrow').addEventListener('click',()=>{ currentPackIndex = (currentPackIndex-1+DATA.packs.length)%DATA.packs.length; renderPackView(currentPackIndex); });
+    $('#right-arrow').addEventListener('click',()=>{ currentPackIndex = (currentPackIndex+1)%DATA.packs.length; renderPackView(currentPackIndex); });
+    $('#open-pack').addEventListener('click',()=>{ const pack = DATA.packs[currentPackIndex]; openPack(pack); });
+    $('#shop-back').addEventListener('click',()=>showScreen('main-menu'));
+
+    // Collection controls
+    $('#sell-duplicates').addEventListener('click',openSellDialog);
+    $('#collection-back').addEventListener('click',()=>showScreen('main-menu'));
+    $('#confirm-sell').addEventListener('click',confirmSell);
+    $('#cancel-sell').addEventListener('click',cancelSell);
+
+    // cinematic skip
+    $('#skip-cinematic').addEventListener('click',()=>{ stopCinematic(); state.introPlayed=true; saveState(); showScreen('title-screen'); });
+
+    renderBalance();
+    renderPackView(currentPackIndex);
+    renderCollectionGrid();
+    showScreen('title-screen');
+  }
+
+  // Simple cinematic (canvas coin + cards) - respects reduced motion
+  let cinematicRunning=false;
+  function playCinematic(cb){
+    if(state.settings.reducedMotion){ cb(); return; }
+    const screen = $('#cinematic');
+    screen.classList.remove('hidden');
+    showScreen('cinematic');
+    cinematicRunning=true;
+    const canvas = $('#cinematic-canvas');
+    canvas.width = window.innerWidth; canvas.height = window.innerHeight;
+    const ctx = canvas.getContext('2d');
+    let t=0;const cards=[];
+    function initCards(){
+      for(let i=0;i<12;i++) cards.push({angle:Math.random()*Math.PI*2,dist: Math.random()*200+50});
+    }
+    initCards();
+    function loop(){
+      if(!cinematicRunning){ screen.classList.add('hidden'); cb(); return; }
+      t+=0.02; ctx.clearRect(0,0,canvas.width,canvas.height);
+      // draw coin falling
+      const cx = canvas.width/2, cy = canvas.height/2;
+      const coinY = Math.min(canvas.height, 100 + (t*300));
+      ctx.fillStyle = '#c69b18'; ctx.beginPath(); ctx.arc(cx, coinY, 30,0,Math.PI*2); ctx.fill();
+      // after impact, scatter cards
+      if(t>0.8){
+        cards.forEach((c,i)=>{
+          const a = c.angle + t* (0.5 + i*0.02);
+          const x = cx + Math.cos(a)*(c.dist + t*30);
+          const y = cy + Math.sin(a)*(c.dist + t*20);
+          ctx.fillStyle = '#222'; ctx.fillRect(x-30,y-20,60,40);
+        });
+      }
+      if(t>2.4){ cinematicRunning=false; }
+      requestAnimationFrame(loop);
+    }
+    loop();
+  }
+  function stopCinematic(){ cinematicRunning=false; }
+
+  // Initialize app on DOM ready
+  document.addEventListener('DOMContentLoaded',init);
+})();
